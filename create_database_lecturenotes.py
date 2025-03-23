@@ -1,13 +1,100 @@
 from langchain_community.document_loaders import DirectoryLoader
 from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import Document
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores.chroma import Chroma
+import openai
+from dotenv import load_dotenv
+import os
+import shutil
+import tiktoken
 
-DATA_PATH_LECTURENOTES = "data/lecture_notes/iot"
+load_dotenv()
+openai.api_key = os.environ['OPENAI_API_KEY']
 
-def load_documents_lecturenotes():
-    loader = DirectoryLoader(DATA_PATH_LECTURENOTES, glob="*.pdf", loader_cls=PyPDFLoader)
+DATA_PATH = "data/lecture_notes"
+CHROMA_PATH = "chroma/lecture_notes"
+
+def main():
+    generate_data_store()
+
+def generate_data_store():
+    documents = load_documents()
+    calculate_tokens(documents)
+    chunks = split_text(documents)
+    save_to_chroma(chunks)
+
+def load_documents():
+    loader = DirectoryLoader(DATA_PATH, glob="*.pdf", loader_cls=PyPDFLoader)
     documents = loader.load()
     return documents
 
-#lecture_notes_documents = load_documents_lecturenotes()
-#lecture_note_page = lecture_notes_documents[8] # access last page of lecture week 1
-#print("LECTURE NOTE: \n", lecture_note_page, "\n")
+def calculate_tokens(documents: list[Document]):
+    enc = tiktoken.encoding_for_model("text-embedding-ada-002")
+    total_tokens = 0
+
+    for document in documents:
+        num_tokens = len(enc.encode(document.page_content))
+        total_tokens += num_tokens
+    print(f"Total tokens in all documents: {total_tokens}")
+
+    cost_per_1000_tokens = 0.0001
+    total_cost = (total_tokens / 1000) * cost_per_1000_tokens
+    print(f"Estimated cost to embed all documents: ${total_cost:.6f}")
+
+def split_text(documents: list[Document]):
+    # Splitting the text
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size = 300,
+        chunk_overlap = 100,
+        length_function = len,
+        add_start_index = True
+    )
+
+    chunks = splitter.split_documents(documents)
+    print(f"Split {len(documents)} documents into {len(chunks)} chunks.")
+
+    document = chunks[99]
+    #print("CHUNKS: \n", chunks)
+    print("====================================================")
+    print("CHUNKS[99]: \n", document)
+    print("PAGE_CONTENT: \n", document.page_content)
+    print("METADATA: \n", document.metadata)
+    print("====================================================")
+
+    return chunks
+
+def save_to_chroma(chunks: list[Document]):
+    batch_size = 99
+
+    # Clear out the database first
+    if os.path.exists(CHROMA_PATH):
+        shutil.rmtree(CHROMA_PATH)
+    
+    # Embed and save to database
+    try:
+        print("Initialising Chroma database...")
+
+        first_batch = chunks[:batch_size]
+        db = Chroma.from_documents(
+            documents=first_batch,
+            embedding=OpenAIEmbeddings(),
+            persist_directory=CHROMA_PATH
+        )
+        
+        '''for i in range(batch_size, len(chunks), batch_size):
+            batch = chunks[i: i + batch_size]
+            db.add_documents(batch)'''
+
+        print("***before persist***")
+        db.persist()
+        print("***after persist***")
+        print(f"Saved {batch_size} chunks to {CHROMA_PATH}")
+        '''print(f"Saved {len(chunks)} chunks to {CHROMA_PATH}")'''
+
+    except Exception as e:
+        print(f"Error while creating the Chroma database: {e}")
+    
+if __name__ == "__main__":
+    main()

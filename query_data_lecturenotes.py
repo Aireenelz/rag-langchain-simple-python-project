@@ -10,7 +10,7 @@ import os
 load_dotenv()
 openai.api_key = os.environ['OPENAI_API_KEY']
 
-CHROMA_PATH = "chroma"
+CHROMA_PATH = "chroma/lecture_notes"
 
 PROMPT_TEMPLATE = """
 Answer the question based only on the following context: 

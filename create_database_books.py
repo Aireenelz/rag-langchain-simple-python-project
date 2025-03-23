@@ -12,20 +12,20 @@ import tiktoken
 load_dotenv()
 openai.api_key = os.environ['OPENAI_API_KEY']
 
-DATA_PATH_BOOKS = "data/books"
-CHROMA_PATH = "chroma"
+DATA_PATH = "data/books"
+CHROMA_PATH = "chroma/books"
 
 def main():
     generate_data_store()
 
 def generate_data_store():
-    documents = load_documents_books()
+    documents = load_documents()
     calculate_tokens(documents)
     chunks = split_text(documents)
     save_to_chroma(chunks)
 
-def load_documents_books():
-    loader = DirectoryLoader(DATA_PATH_BOOKS, glob="*.md")
+def load_documents():
+    loader = DirectoryLoader(DATA_PATH, glob="*.md")
     documents = loader.load()
     return documents
 
