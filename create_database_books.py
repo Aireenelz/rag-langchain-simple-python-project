@@ -65,24 +65,33 @@ def split_text(documents: list[Document]):
     return chunks
 
 def save_to_chroma(chunks: list[Document]):
-    
+    batch_size = 99
+
     # Clear out the database first
     if os.path.exists(CHROMA_PATH):
         shutil.rmtree(CHROMA_PATH)
     
-    # Create a new database from the documents
+    # Embed and save to database
     try:
-        # Create a new database from the documents
-        print("Initializing Chroma database...")
+        print("Initialising Chroma database...")
+
+        first_batch = chunks[:batch_size]
         db = Chroma.from_documents(
-            documents=chunks,
+            documents=first_batch,
             embedding=OpenAIEmbeddings(),
             persist_directory=CHROMA_PATH
         )
+        
+        '''for i in range(batch_size, len(chunks), batch_size):
+            batch = chunks[i: i + batch_size]
+            db.add_documents(batch)'''
+
         print("***before persist***")
         db.persist()
         print("***after persist***")
-        print(f"Saved {len(chunks)} chunks to {CHROMA_PATH}")
+        print(f"Saved {batch_size} chunks to {CHROMA_PATH}")
+        '''print(f"Saved {len(chunks)} chunks to {CHROMA_PATH}")'''
+
     except Exception as e:
         print(f"Error while creating the Chroma database: {e}")
     
